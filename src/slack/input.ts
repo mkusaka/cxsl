@@ -1,4 +1,4 @@
-export type SlackInputSource = "assistant" | "dm" | "app_mention";
+export type SlackInputSource = "assistant" | "dm" | "app_mention" | "channel_thread";
 
 export type SlackInput = {
   source: SlackInputSource;

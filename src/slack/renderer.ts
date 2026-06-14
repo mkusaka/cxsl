@@ -22,6 +22,12 @@ export type SlackWebClientPort = {
       unfurl_links: false;
       unfurl_media: false;
     }): Promise<unknown>;
+    postEphemeral(input: {
+      channel: string;
+      user: string;
+      thread_ts?: string;
+      markdown_text: string;
+    }): Promise<unknown>;
   };
 };
 
@@ -66,6 +72,22 @@ export class SlackRenderer {
         markdown_text: chunk,
         unfurl_links: false,
         unfurl_media: false,
+      });
+    }
+  }
+
+  async postEphemeralMessage(input: {
+    channelId: string;
+    userId: string;
+    threadTs?: string;
+    text: string;
+  }): Promise<void> {
+    for (const chunk of splitSlackMarkdown(input.text)) {
+      await this.client.chat.postEphemeral({
+        channel: input.channelId,
+        user: input.userId,
+        thread_ts: input.threadTs,
+        markdown_text: chunk,
       });
     }
   }

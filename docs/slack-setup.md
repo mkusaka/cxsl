@@ -19,7 +19,7 @@ The manifest enables:
 - App Home Messages tab with user messages enabled.
 - Agents & AI Apps assistant view.
 - Interactivity for later approval buttons.
-- Events for `app_mention`, `message.im`, `assistant_thread_started`, and `assistant_thread_context_changed`.
+- Events for `app_mention`, `message.channels`, `message.im`, `assistant_thread_started`, and `assistant_thread_context_changed`.
 
 ## 2. Install and collect tokens
 
@@ -91,9 +91,9 @@ Channel mention:
 
 1. Invite the app to a test channel.
 2. Send `@cxsl Inspect this repo`.
-3. Continue the same thread by mentioning the app again.
+3. Continue the same thread by mentioning the app again, or by posting a normal thread reply.
 
-Channel thread replies must mention the app in Phase 1. Plain thread replies in channels are intentionally ignored because `message.channels` and `message.groups` are not subscribed.
+Plain public channel root messages are ignored. Plain public channel thread replies are sent to Codex unless they start with `!aside`. If `SLACK_ALLOWED_USER_IDS` is set, only those users' plain thread replies are sent to Codex. Mentioning the app still sends the message to Codex, including messages that start with `!aside`.
 
 Assistant thread:
 
@@ -130,6 +130,7 @@ If app mentions do not work:
 
 - Confirm the app is invited to the channel.
 - Confirm `app_mentions:read` and `chat:write` are present under bot scopes.
+- Confirm `channels:history` is present if unmentioned public channel thread replies do not work.
 - Confirm the channel is allowed by `SLACK_ALLOWED_CHANNEL_IDS`, if set.
 
 If assistant threads do not work:
@@ -151,6 +152,7 @@ Required bot scopes in [`../manifest.yml`](../manifest.yml):
 
 - `app_mentions:read`
 - `assistant:write`
+- `channels:history`
 - `chat:write`
 - `im:history`
 
@@ -161,7 +163,7 @@ Required app-level token scope:
 Optional future additions:
 
 - `commands` scope and slash command definitions, once `/codex status` and related control-plane commands are implemented.
-- `channels:history` / `groups:history`, only if channel context retrieval is explicitly added.
+- `groups:history` and `message.groups`, only if unmentioned private channel thread replies are explicitly added.
 
 ## 9. References
 

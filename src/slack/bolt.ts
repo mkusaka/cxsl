@@ -10,6 +10,7 @@ import * as v from "valibot";
 import type { AppConfig } from "../config.ts";
 import type { Logger } from "../logger.ts";
 import type { Orchestrator } from "../orchestrator/orchestrator.ts";
+import { SlackPolicyError } from "../orchestrator/policy.ts";
 import { SlackRenderer } from "./renderer.ts";
 import { shouldIgnoreMessage, stripBotMentions, type SlackInput } from "./input.ts";
 
@@ -69,7 +70,13 @@ export function createSlackApp(
         });
         return;
       }
-      await orchestrator.handleSlackInput(input, new SlackRenderer(client, logger));
+      await handleSlackInputWithPolicyFeedback(
+        orchestrator,
+        input,
+        new SlackRenderer(client, logger),
+        logger,
+        true,
+      );
     },
   });
 
@@ -85,12 +92,19 @@ export function createSlackApp(
       });
       return;
     }
-    await orchestrator.handleSlackInput(input, new SlackRenderer(client, logger));
+    await handleSlackInputWithPolicyFeedback(
+      orchestrator,
+      input,
+      new SlackRenderer(client, logger),
+      logger,
+      true,
+    );
   });
 
   app.message(async ({ message, client, context }) => {
     logger.debug("message event received", summarizeSlackEvent(message, context));
-    const input = dmMessageToInput(message, context);
+    const input = dmMessageToInput(message, context) ??
+      channelThreadMessageToInput(message, context, config);
     if (!input) {
       logger.debug("message event ignored", {
         reason: inputDropReason(message),
@@ -98,13 +112,19 @@ export function createSlackApp(
       });
       return;
     }
-    await orchestrator.handleSlackInput(input, new SlackRenderer(client, logger));
+    await handleSlackInputWithPolicyFeedback(
+      orchestrator,
+      input,
+      new SlackRenderer(client, logger),
+      logger,
+      input.source !== "channel_thread",
+    );
   });
 
   return app;
 }
 
-type SlackContext = Pick<Context, "teamId">;
+type SlackContext = Pick<Context, "botUserId" | "teamId">;
 
 type SlackMessageForInput = {
   type?: string;
@@ -140,8 +160,29 @@ function dmMessageToInput(
   return commonInput("dm", message, context, text);
 }
 
-function appMentionToInput(
-  event: SlackEventMiddlewareArgs<"app_mention">["event"],
+export function channelThreadMessageToInput(
+  message: SlackMessageForInput,
+  context: SlackContext,
+  config: Pick<AppConfig, "allowedChannelIds" | "allowedUserIds">,
+): SlackInput | null {
+  if (shouldIgnoreMessage(message)) return null;
+  if (message.channel_type != null && message.channel_type !== "channel") return null;
+  if (!message.thread_ts || message.thread_ts === message.ts) return null;
+
+  const text = message.text?.trim() ?? "";
+  if (!text) return null;
+  if (mentionsBot(text, context.botUserId)) return null;
+  if (isAsideMessage(text)) return null;
+  if (config.allowedUserIds.size > 0 && !config.allowedUserIds.has(message.user ?? "")) return null;
+  if (config.allowedChannelIds.size > 0 && !config.allowedChannelIds.has(message.channel ?? "")) {
+    return null;
+  }
+
+  return commonInput("channel_thread", message, context, text);
+}
+
+export function appMentionToInput(
+  event: SlackMessageForInput & { text: string },
   context: SlackContext,
 ): SlackInput | null {
   if (shouldIgnoreMessage(event)) return null;
@@ -195,6 +236,56 @@ function summarizeSlackArgs(args: {
     messageTs: event?.ts,
     hasText: event?.text != null && event.text.length > 0,
   };
+}
+
+export async function handleSlackInputWithPolicyFeedback(
+  orchestrator: Pick<Orchestrator, "handleSlackInput">,
+  input: SlackInput,
+  renderer: SlackRenderer,
+  logger: Pick<Logger, "debug">,
+  notifyPolicyErrors: boolean,
+): Promise<void> {
+  try {
+    await orchestrator.handleSlackInput(input, renderer);
+  } catch (error) {
+    if (!(error instanceof SlackPolicyError)) throw error;
+
+    logger.debug("slack input rejected by policy", {
+      reason: error.reason,
+      source: input.source,
+      channelId: input.channelId,
+      userId: input.userId,
+      threadTs: input.threadTs,
+      messageTs: input.messageTs,
+    });
+    if (!notifyPolicyErrors) return;
+
+    try {
+      await renderer.postEphemeralMessage({
+        channelId: input.channelId,
+        userId: input.userId,
+        threadTs: input.threadTs,
+        text: error.message,
+      });
+    } catch (postError) {
+      logger.debug("policy error ephemeral message skipped", {
+        error: postError instanceof Error ? postError.message : String(postError),
+      });
+    }
+  }
+}
+
+function mentionsBot(text: string, botUserId: string | undefined): boolean {
+  if (!botUserId) return false;
+  return new RegExp(`<@${escapeRegExp(botUserId)}(?:\\|[^>]+)?>`).test(text);
+}
+
+function isAsideMessage(text: string): boolean {
+  return text.trimStart().startsWith("!aside");
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 const SlackEventSummarySchema = v.looseObject({

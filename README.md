@@ -7,15 +7,17 @@ Slack gateway for Codex app-server.
 Phase 1 keeps the Slack surface intentionally small:
 
 - Direct messages: handle `message.im`.
-- Channel threads: handle `app_mention`; a reply in a channel thread must mention the app.
+- Channel threads: handle `app_mention`; public channel thread replies from allowed users can continue without mentioning the app.
 - Slack assistant surface: handle `assistant_thread_started` and continue the assistant thread through the Codex app-server.
 - Codex runtime: call a shared `codex app-server` stdio process from the worker.
 - State: persist Slack thread/session/turn/approval audit data in SQLite.
 - Approvals: natural-language approvals are not accepted. Phase 1 records app-server approval requests and declines them; Slack button approval is the next implementation phase.
 
+In public channel threads, unmentioned replies that start with `!aside` are ignored. Mentioning the app still sends the message to Codex.
+
 Out of scope for v0.1:
 
-- Reading arbitrary channel messages without an app mention.
+- Reading root channel messages without an app mention.
 - Slash commands, shortcuts, file ingestion, multi-workspace OAuth install flow, or approval button handling.
 - Per-thread Codex app-server processes.
 
@@ -28,6 +30,7 @@ The manifest enables Socket Mode and Events API subscriptions. Interactivity is 
 Bot scopes:
 
 - `app_mentions:read` for channel mentions.
+- `channels:history` for public channel thread replies without an app mention.
 - `im:history` for direct messages to the app.
 - `chat:write` for thread replies and approval messages.
 - `assistant:write` for the Slack assistant surface.
@@ -35,6 +38,7 @@ Bot scopes:
 Subscribed bot events:
 
 - `app_mention`
+- `message.channels`
 - `message.im`
 - `assistant_thread_started`
 - `assistant_thread_context_changed`

@@ -15,9 +15,15 @@ function createLogger() {
 
 function createClient() {
   type PostedMessage = Parameters<SlackWebClientPort["chat"]["postMessage"]>[0];
+  type PostedEphemeral = Parameters<SlackWebClientPort["chat"]["postEphemeral"]>[0];
   const calls: PostedMessage[] = [];
-  const client: SlackWebClientPort & { calls: PostedMessage[] } = {
+  const ephemeralCalls: PostedEphemeral[] = [];
+  const client: SlackWebClientPort & {
+    calls: PostedMessage[];
+    ephemeralCalls: PostedEphemeral[];
+  } = {
     calls,
+    ephemeralCalls,
     assistant: {
       threads: {
         async setStatus() {},
@@ -26,6 +32,10 @@ function createClient() {
     chat: {
       async postMessage(payload: PostedMessage) {
         calls.push(payload);
+        return { ok: true };
+      },
+      async postEphemeral(payload: PostedEphemeral) {
+        ephemeralCalls.push(payload);
         return { ok: true };
       },
     },
@@ -59,6 +69,27 @@ test("postThreadMessage sends standard markdown through markdown_text", async ()
     },
   ]);
   assert.equal("text" in getFirstPost(client.calls), false);
+});
+
+test("postEphemeralMessage sends markdown only to the target user", async () => {
+  const client = createClient();
+  const renderer = new SlackRenderer(client, createLogger());
+
+  await renderer.postEphemeralMessage({
+    channelId: "C123",
+    userId: "U123",
+    threadTs: "1710000000.000001",
+    text: "This Slack user is not allowed to use cxsl.",
+  });
+
+  assert.deepEqual(client.ephemeralCalls, [
+    {
+      channel: "C123",
+      user: "U123",
+      thread_ts: "1710000000.000001",
+      markdown_text: "This Slack user is not allowed to use cxsl.",
+    },
+  ]);
 });
 
 test("splitSlackMarkdown keeps chunks below the Slack markdown_text limit", () => {
