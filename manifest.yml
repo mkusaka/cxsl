@@ -1,0 +1,37 @@
+display_information:
+  name: cxsl
+  description: Slack gateway for Codex app-server
+  background_color: "#1f2937"
+
+features:
+  app_home:
+    home_tab_enabled: false
+    messages_tab_enabled: true
+    messages_tab_read_only_enabled: false
+  bot_user:
+    display_name: cxsl
+    always_online: true
+  assistant_view:
+    assistant_description: Run Codex from Slack direct messages, mentions, and assistant threads.
+
+oauth_config:
+  scopes:
+    bot:
+      - app_mentions:read
+      - assistant:write
+      - chat:write
+      - im:history
+
+settings:
+  socket_mode_enabled: true
+  token_rotation_enabled: false
+  interactivity:
+    is_enabled: true
+  event_subscriptions:
+    bot_events:
+      - app_mention
+      - message.im
+      - assistant_thread_started
+      - assistant_thread_context_changed
+  incoming_webhooks:
+    incoming_webhooks_enabled: false

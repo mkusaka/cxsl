@@ -1,0 +1,28 @@
+{
+  "name": "cxsl",
+  "version": "0.1.0",
+  "description": "Slack gateway for Codex app-server",
+  "type": "module",
+  "private": true,
+  "packageManager": "pnpm@11.4.0",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "dev": "node src/app.ts",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node --test test/*.test.ts",
+    "start": "node dist/app.js",
+    "generate:codex-schema": "codex app-server generate-ts --out .codex-schema/app-server"
+  },
+  "dependencies": {
+    "@slack/bolt": "^4.7.3",
+    "dotenv": "^17.4.2",
+    "valibot": "^1.4.1"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.3",
+    "typescript": "^6.0.3"
+  }
+}
