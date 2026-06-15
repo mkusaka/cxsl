@@ -48,7 +48,7 @@ Subscribed bot events:
 
 ## Configuration
 
-Copy `.env.example` to `.env` and fill in local values.
+Copy `.env.example` to `.env` and fill in local values. `pnpm dev` and `pnpm start` load `.env` with Node's native `--env-file-if-exists` support.
 
 Required:
 

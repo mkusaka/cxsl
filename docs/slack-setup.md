@@ -47,6 +47,8 @@ pnpm install
 cp .env.example .env
 ```
 
+`pnpm dev` and `pnpm start` load `.env` with Node's native `--env-file-if-exists` support.
+
 Fill in:
 
 ```sh
