@@ -33,11 +33,13 @@ export type ServerRequestHandler = (
 ) => Promise<unknown | undefined>;
 
 type NotificationHandler = (notification: CodexNotification) => void;
+type DeltaHandler = (delta: string) => void | Promise<void>;
 
 type TurnCollector = {
   threadId: string;
   turnId: string | null;
   chunks: string[];
+  onDelta?: DeltaHandler;
   resolve: (result: TurnRunResult) => void;
   reject: (error: Error) => void;
 };
@@ -155,8 +157,9 @@ export class CodexClient {
     text: string;
     cwd?: string;
     clientUserMessageId?: string;
+    onDelta?: DeltaHandler;
   }): Promise<TurnRunResult> {
-    const collector = await this.createCollector(input.threadId);
+    const collector = await this.createCollector(input.threadId, input.onDelta);
     const response = await this.request(
       "turn/start",
       {
@@ -193,7 +196,10 @@ export class CodexClient {
     await this.request("turn/interrupt", input, v.unknown());
   }
 
-  private async createCollector(threadId: string): Promise<TurnCollector & { promise: Promise<TurnRunResult> }> {
+  private async createCollector(
+    threadId: string,
+    onDelta?: DeltaHandler,
+  ): Promise<TurnCollector & { promise: Promise<TurnRunResult> }> {
     let resolve!: (result: TurnRunResult) => void;
     let reject!: (error: Error) => void;
     const promise = new Promise<TurnRunResult>((res, rej) => {
@@ -204,6 +210,7 @@ export class CodexClient {
       threadId,
       turnId: null,
       chunks: [],
+      onDelta,
       resolve,
       reject,
       promise,
@@ -247,7 +254,16 @@ export class CodexClient {
 
     if (notification.method === "item/agentMessage/delta") {
       const delta = typeof params.delta === "string" ? params.delta : null;
-      if (delta) collector.chunks.push(delta);
+      if (delta) {
+        collector.chunks.push(delta);
+        void Promise.resolve()
+          .then(() => collector.onDelta?.(delta))
+          .catch((error: unknown) => {
+            this.options.logger.debug("codex delta handler failed", {
+              error: error instanceof Error ? error.message : String(error),
+            });
+          });
+      }
       return;
     }
 

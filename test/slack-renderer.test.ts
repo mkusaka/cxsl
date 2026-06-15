@@ -15,14 +15,30 @@ function createLogger() {
 
 function createClient() {
   type PostedMessage = Parameters<SlackWebClientPort["chat"]["postMessage"]>[0];
+  type UpdatedMessage = Parameters<NonNullable<SlackWebClientPort["chat"]["update"]>>[0];
+  type StartedStream = Parameters<NonNullable<SlackWebClientPort["chat"]["startStream"]>>[0];
+  type AppendedStream = Parameters<NonNullable<SlackWebClientPort["chat"]["appendStream"]>>[0];
+  type StoppedStream = Parameters<NonNullable<SlackWebClientPort["chat"]["stopStream"]>>[0];
   type PostedEphemeral = Parameters<SlackWebClientPort["chat"]["postEphemeral"]>[0];
   const calls: PostedMessage[] = [];
+  const updates: UpdatedMessage[] = [];
+  const startedStreams: StartedStream[] = [];
+  const appendedStreams: AppendedStream[] = [];
+  const stoppedStreams: StoppedStream[] = [];
   const ephemeralCalls: PostedEphemeral[] = [];
   const client: SlackWebClientPort & {
     calls: PostedMessage[];
+    updates: UpdatedMessage[];
+    startedStreams: StartedStream[];
+    appendedStreams: AppendedStream[];
+    stoppedStreams: StoppedStream[];
     ephemeralCalls: PostedEphemeral[];
   } = {
     calls,
+    updates,
+    startedStreams,
+    appendedStreams,
+    stoppedStreams,
     ephemeralCalls,
     assistant: {
       threads: {
@@ -32,10 +48,26 @@ function createClient() {
     chat: {
       async postMessage(payload: PostedMessage) {
         calls.push(payload);
+        return { ok: true, ts: `1710000000.${String(calls.length).padStart(6, "0")}` };
+      },
+      async update(payload: UpdatedMessage) {
+        updates.push(payload);
         return { ok: true };
       },
       async postEphemeral(payload: PostedEphemeral) {
         ephemeralCalls.push(payload);
+        return { ok: true };
+      },
+      async startStream(payload: StartedStream) {
+        startedStreams.push(payload);
+        return { ok: true, ts: "1710000000.999999" };
+      },
+      async appendStream(payload: AppendedStream) {
+        appendedStreams.push(payload);
+        return { ok: true };
+      },
+      async stopStream(payload: StoppedStream) {
+        stoppedStreams.push(payload);
         return { ok: true };
       },
     },
@@ -90,6 +122,85 @@ test("postEphemeralMessage sends markdown only to the target user", async () => 
       markdown_text: "This Slack user is not allowed to use cxsl.",
     },
   ]);
+});
+
+test("streams thread messages through Slack streaming APIs", async () => {
+  const client = createClient();
+  const renderer = new SlackRenderer(client, createLogger());
+
+  const stream = await renderer.startThreadStream({
+    channelId: "C123",
+    threadTs: "1710000000.000001",
+  });
+  assert.deepEqual(stream, { streamTs: "1710000000.999999" });
+  await renderer.appendThreadStream({
+    channelId: "C123",
+    streamTs: "1710000000.999999",
+    text: "Hello",
+  });
+  await renderer.stopThreadStream({
+    channelId: "C123",
+    streamTs: "1710000000.999999",
+  });
+
+  assert.deepEqual(client.startedStreams, [
+    {
+      channel: "C123",
+      thread_ts: "1710000000.000001",
+      markdown_text: "",
+    },
+  ]);
+  assert.deepEqual(client.appendedStreams, [
+    {
+      channel: "C123",
+      ts: "1710000000.999999",
+      markdown_text: "Hello",
+    },
+  ]);
+  assert.deepEqual(client.stoppedStreams, [
+    {
+      channel: "C123",
+      ts: "1710000000.999999",
+      markdown_text: undefined,
+    },
+  ]);
+});
+
+test("postApprovalRequest sends approve and decline buttons", async () => {
+  const client = createClient();
+  const renderer = new SlackRenderer(client, createLogger());
+
+  const response = await renderer.postApprovalRequest({
+    channelId: "C123",
+    threadTs: "1710000000.000001",
+    approvalRequestId: "approval-1",
+    title: "Codex approval requested",
+    text: "Request: item/commandExecution/requestApproval\ncommand: pnpm test",
+  });
+
+  assert.deepEqual(response, { messageTs: "1710000000.000001" });
+  const message = getFirstPost(client.calls);
+  assert.equal("blocks" in message, true);
+  if (!("blocks" in message)) throw new Error("expected blocks");
+  assert.deepEqual(message.blocks.at(1), {
+    type: "actions",
+    elements: [
+      {
+        type: "button",
+        text: { type: "plain_text", text: "Approve" },
+        style: "primary",
+        action_id: "cxsl_approval_approve",
+        value: "approval-1",
+      },
+      {
+        type: "button",
+        text: { type: "plain_text", text: "Decline" },
+        style: "danger",
+        action_id: "cxsl_approval_decline",
+        value: "approval-1",
+      },
+    ],
+  });
 });
 
 test("splitSlackMarkdown keeps chunks below the Slack markdown_text limit", () => {

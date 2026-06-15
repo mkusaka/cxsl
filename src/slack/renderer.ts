@@ -1,7 +1,26 @@
 import type { Logger } from "../logger.ts";
+import type { Block, KnownBlock } from "@slack/types";
 
 export const SLACK_MARKDOWN_TEXT_CHAR_LIMIT = 12_000;
 export const SLACK_MARKDOWN_TEXT_CHUNK_LIMIT = 11_000;
+
+type SlackBlock = Block | KnownBlock;
+type SlackPostMessageInput =
+  | {
+    channel: string;
+    thread_ts: string;
+    markdown_text: string;
+    unfurl_links: false;
+    unfurl_media: false;
+  }
+  | {
+    channel: string;
+    thread_ts: string;
+    text: string;
+    blocks: SlackBlock[];
+    unfurl_links: false;
+    unfurl_media: false;
+  };
 
 export type SlackWebClientPort = {
   assistant: {
@@ -15,18 +34,33 @@ export type SlackWebClientPort = {
     };
   };
   chat: {
-    postMessage(input: {
+    postMessage(input: SlackPostMessageInput): Promise<{ ts?: string } | unknown>;
+    update?(input: {
       channel: string;
-      thread_ts: string;
-      markdown_text: string;
-      unfurl_links: false;
-      unfurl_media: false;
+      ts: string;
+      text?: string;
+      blocks?: SlackBlock[];
     }): Promise<unknown>;
     postEphemeral(input: {
       channel: string;
       user: string;
       thread_ts?: string;
       markdown_text: string;
+    }): Promise<unknown>;
+    startStream?(input: {
+      channel: string;
+      thread_ts: string;
+      markdown_text?: string;
+    }): Promise<{ ts?: string } | unknown>;
+    appendStream?(input: {
+      channel: string;
+      ts: string;
+      markdown_text: string;
+    }): Promise<unknown>;
+    stopStream?(input: {
+      channel: string;
+      ts: string;
+      markdown_text?: string;
     }): Promise<unknown>;
   };
 };
@@ -91,6 +125,141 @@ export class SlackRenderer {
       });
     }
   }
+
+  async startThreadStream(input: {
+    channelId: string;
+    threadTs: string;
+  }): Promise<{ streamTs: string } | null> {
+    if (!this.client.chat.startStream) return null;
+
+    try {
+      const response = await this.client.chat.startStream({
+        channel: input.channelId,
+        thread_ts: input.threadTs,
+        markdown_text: "",
+      });
+      const streamTs = extractSlackTs(response);
+      return streamTs ? { streamTs } : null;
+    } catch (error) {
+      this.logger.debug("slack stream start skipped", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return null;
+    }
+  }
+
+  async appendThreadStream(input: {
+    channelId: string;
+    streamTs: string;
+    text: string;
+  }): Promise<void> {
+    if (!this.client.chat.appendStream) return;
+    await this.client.chat.appendStream({
+      channel: input.channelId,
+      ts: input.streamTs,
+      markdown_text: input.text,
+    });
+  }
+
+  async stopThreadStream(input: {
+    channelId: string;
+    streamTs: string;
+    text?: string;
+  }): Promise<void> {
+    if (!this.client.chat.stopStream) return;
+    await this.client.chat.stopStream({
+      channel: input.channelId,
+      ts: input.streamTs,
+      markdown_text: input.text,
+    });
+  }
+
+  async postApprovalRequest(input: {
+    channelId: string;
+    threadTs: string;
+    approvalRequestId: string;
+    title: string;
+    text: string;
+  }): Promise<{ messageTs: string | null }> {
+    const response = await this.client.chat.postMessage({
+      channel: input.channelId,
+      thread_ts: input.threadTs,
+      text: input.title,
+      blocks: approvalBlocks(input),
+      unfurl_links: false,
+      unfurl_media: false,
+    });
+    return { messageTs: extractSlackTs(response) };
+  }
+
+  async updateApprovalRequest(input: {
+    channelId: string;
+    messageTs: string;
+    title: string;
+    text: string;
+  }): Promise<void> {
+    if (!this.client.chat.update) return;
+    await this.client.chat.update({
+      channel: input.channelId,
+      ts: input.messageTs,
+      text: input.title,
+      blocks: resolvedApprovalBlocks(input),
+    });
+  }
+}
+
+function extractSlackTs(response: unknown): string | null {
+  if (!response || typeof response !== "object") return null;
+  const ts = (response as { ts?: unknown }).ts;
+  return typeof ts === "string" ? ts : null;
+}
+
+function approvalBlocks(input: {
+  approvalRequestId: string;
+  title: string;
+  text: string;
+}): SlackBlock[] {
+  return [
+    {
+      type: "section",
+      text: { type: "mrkdwn", text: `*${escapeMrkdwn(input.title)}*\n${escapeMrkdwn(input.text)}` },
+    },
+    {
+      type: "actions",
+      elements: [
+        {
+          type: "button",
+          text: { type: "plain_text", text: "Approve" },
+          style: "primary",
+          action_id: "cxsl_approval_approve",
+          value: input.approvalRequestId,
+        },
+        {
+          type: "button",
+          text: { type: "plain_text", text: "Decline" },
+          style: "danger",
+          action_id: "cxsl_approval_decline",
+          value: input.approvalRequestId,
+        },
+      ],
+    },
+  ];
+}
+
+function resolvedApprovalBlocks(input: {
+  title: string;
+  text: string;
+}): SlackBlock[] {
+  return [
+    {
+      type: "section",
+      text: { type: "mrkdwn", text: `*${escapeMrkdwn(input.title)}*\n${escapeMrkdwn(input.text)}` },
+    },
+  ];
+}
+
+function escapeMrkdwn(text: string): string {
+  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
 export function splitSlackMarkdown(

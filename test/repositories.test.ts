@@ -104,3 +104,52 @@ test("free-form persisted text is redacted", () => {
   assert.match(inputPreview, /<redacted>/);
   assert.match(errorMessage, /<redacted>/);
 });
+
+test("approval requests can be recorded and resolved by Slack buttons", () => {
+  const { repos } = createRepos();
+  const session = createSession(repos);
+  const turn = repos.createTurn({
+    sessionId: session.id,
+    generation: 1,
+    inputText: "run tests",
+    classifiedIntent: "start_turn",
+  });
+  assert.ok(turn);
+
+  const approval = repos.recordPendingApproval({
+    sessionId: session.id,
+    turnId: turn.id,
+    codexRequestId: "request-1",
+    requestMethod: "item/commandExecution/requestApproval",
+    codexItemId: "item-1",
+    codexApprovalId: "approval-id-1",
+    actionType: "item/commandExecution/requestApproval",
+    command: `echo SLACK_BOT_TOKEN=${FAKE_SLACK_BOT_TOKEN}`,
+    cwd: "/tmp/cxsl-test",
+  });
+  repos.setApprovalSlackMessage({
+    approvalRequestId: approval.id,
+    slackMessageTs: "1710000000.000002",
+  });
+
+  const resolved = repos.resolveApprovalRequest({
+    approvalRequestId: approval.id,
+    actorSlackUserId: "U123",
+    resolution: "approve",
+  });
+
+  assert.ok(resolved);
+  assert.equal(resolved.state, "resolved");
+  assert.equal(resolved.resolution, "approve");
+  assert.equal(resolved.slackMessageTs, "1710000000.000002");
+  assert.equal(resolved.command?.includes(FAKE_SLACK_BOT_TOKEN), false);
+  assert.match(resolved.command ?? "", /<redacted>/);
+  assert.equal(
+    repos.resolveApprovalRequest({
+      approvalRequestId: approval.id,
+      actorSlackUserId: "U123",
+      resolution: "decline",
+    }),
+    null,
+  );
+});

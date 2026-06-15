@@ -44,6 +44,24 @@ export type AgentTurn = {
   state: string;
 };
 
+export type ApprovalResolution = "approve" | "decline";
+
+export type ApprovalRequest = {
+  id: string;
+  sessionId: string;
+  turnId: string | null;
+  codexRequestId: string;
+  requestMethod: string;
+  codexItemId: string | null;
+  codexApprovalId: string | null;
+  slackMessageTs: string | null;
+  actionType: string;
+  command: string | null;
+  cwd: string | null;
+  state: string;
+  resolution: string | null;
+};
+
 const NullableStringSchema = v.nullable(v.string());
 
 const SlackThreadRowSchema = v.object({
@@ -76,6 +94,23 @@ type AgentTurnRow = {
   generation: number;
   state: string;
 };
+
+const ApprovalRequestRowSchema = v.object({
+  id: v.string(),
+  session_id: v.string(),
+  turn_id: NullableStringSchema,
+  codex_request_id: v.string(),
+  request_method: v.string(),
+  codex_item_id: NullableStringSchema,
+  codex_approval_id: NullableStringSchema,
+  slack_message_ts: NullableStringSchema,
+  action_type: v.string(),
+  command: NullableStringSchema,
+  cwd: NullableStringSchema,
+  state: v.string(),
+  resolution: NullableStringSchema,
+});
+type ApprovalRequestRow = v.InferOutput<typeof ApprovalRequestRowSchema>;
 
 const LooseRecordSchema = v.looseObject({});
 const ItemTypeSchema = v.looseObject({
@@ -424,6 +459,121 @@ export class Repositories {
     });
   }
 
+  recordPendingApproval(input: {
+    sessionId: string;
+    turnId?: string | null;
+    codexRequestId: string;
+    requestMethod: string;
+    codexItemId?: string | null;
+    codexApprovalId?: string | null;
+    actionType: string;
+    command?: string | null;
+    cwd?: string | null;
+  }): ApprovalRequest {
+    const id = newId();
+    this.db
+      .prepare(
+        `INSERT INTO approval_requests (
+          id, session_id, turn_id, codex_request_id, request_method,
+          codex_item_id, codex_approval_id, action_type, command, cwd,
+          risk_level, state, requested_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        id,
+        input.sessionId,
+        input.turnId ?? null,
+        input.codexRequestId,
+        input.requestMethod,
+        input.codexItemId ?? null,
+        input.codexApprovalId ?? null,
+        input.actionType,
+        input.command ? redactStoredString(input.command) : null,
+        input.cwd ?? null,
+        "unknown",
+        "requested",
+        nowIso(),
+      );
+
+    this.recordAuditLog({
+      sessionId: input.sessionId,
+      turnId: input.turnId ?? null,
+      action: "approval.requested",
+      target: input.requestMethod,
+      payload: {
+        codexRequestId: input.codexRequestId,
+        codexItemId: input.codexItemId ?? null,
+        codexApprovalId: input.codexApprovalId ?? null,
+      },
+    });
+
+    const approval = this.findApprovalRequest(id);
+    if (!approval) throw new Error("Failed to read approval request after insert");
+    return approval;
+  }
+
+  setApprovalSlackMessage(input: {
+    approvalRequestId: string;
+    slackMessageTs: string;
+  }): void {
+    this.db
+      .prepare("UPDATE approval_requests SET slack_message_ts = ? WHERE id = ?")
+      .run(input.slackMessageTs, input.approvalRequestId);
+  }
+
+  resolveApprovalRequest(input: {
+    approvalRequestId: string;
+    actorSlackUserId: string;
+    resolution: ApprovalResolution;
+  }): ApprovalRequest | null {
+    const now = nowIso();
+    const update = this.db
+      .prepare(
+        `UPDATE approval_requests
+         SET state = 'resolved',
+             resolved_at = ?,
+             resolved_by_slack_user_id = ?,
+             resolution = ?
+         WHERE id = ? AND state = 'requested'`,
+      )
+      .run(now, input.actorSlackUserId, input.resolution, input.approvalRequestId);
+
+    if (Number(update.changes) !== 1) return null;
+    const approval = this.findApprovalRequest(input.approvalRequestId);
+    if (!approval) return null;
+
+    this.recordAuditLog({
+      actorSlackUserId: input.actorSlackUserId,
+      sessionId: approval.sessionId,
+      turnId: approval.turnId,
+      action: input.resolution === "approve" ? "approval.approved" : "approval.declined",
+      target: approval.requestMethod,
+      payload: {
+        approvalRequestId: approval.id,
+        codexRequestId: approval.codexRequestId,
+      },
+    });
+
+    return approval;
+  }
+
+  findApprovalRequest(approvalRequestId: string): ApprovalRequest | null {
+    const row = readOptionalRow(
+      this.db
+        .prepare(
+          `SELECT id, session_id, turn_id, codex_request_id, request_method,
+                  codex_item_id, codex_approval_id, slack_message_ts,
+                  action_type, command, cwd, state, resolution
+           FROM approval_requests
+           WHERE id = ?`,
+        )
+        .get(approvalRequestId),
+      ApprovalRequestRowSchema,
+      "approval_requests",
+    );
+    return row ? mapApprovalRequest(row) : null;
+  }
+
   recordAuditLog(input: {
     actorSlackUserId?: string | null;
     sessionId?: string | null;
@@ -483,6 +633,24 @@ export function mapAgentTurn(row: AgentTurnRow): AgentTurn {
     codexTurnId: row.codex_turn_id,
     generation: row.generation,
     state: row.state,
+  };
+}
+
+function mapApprovalRequest(row: ApprovalRequestRow): ApprovalRequest {
+  return {
+    id: row.id,
+    sessionId: row.session_id,
+    turnId: row.turn_id,
+    codexRequestId: row.codex_request_id,
+    requestMethod: row.request_method,
+    codexItemId: row.codex_item_id,
+    codexApprovalId: row.codex_approval_id,
+    slackMessageTs: row.slack_message_ts,
+    actionType: row.action_type,
+    command: row.command,
+    cwd: row.cwd,
+    state: row.state,
+    resolution: row.resolution,
   };
 }
 

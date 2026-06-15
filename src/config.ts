@@ -14,7 +14,6 @@ export type AppConfig = {
   codexSandbox: "read-only" | "workspace-write" | "danger-full-access";
   allowedUserIds: Set<string>;
   allowedChannelIds: Set<string>;
-  streamingEnabled: boolean;
   logLevel: "debug" | "info" | "warn" | "error";
 };
 
@@ -38,12 +37,6 @@ function optionalCsv(name: string): Set<string> {
       .map((value) => value.trim())
       .filter(Boolean),
   );
-}
-
-function parseBoolean(name: string, fallback: boolean): boolean {
-  const value = process.env[name];
-  if (value == null || value === "") return fallback;
-  return ["1", "true", "yes", "on"].includes(value.toLowerCase());
 }
 
 function parseArgs(value: string | undefined): string[] {
@@ -95,7 +88,6 @@ export function loadConfig(): AppConfig {
     ] as const),
     allowedUserIds: optionalCsv("SLACK_ALLOWED_USER_IDS"),
     allowedChannelIds: optionalCsv("SLACK_ALLOWED_CHANNEL_IDS"),
-    streamingEnabled: parseBoolean("SLACK_STREAMING_ENABLED", false),
     logLevel: oneOf("LOG_LEVEL", "info", ["debug", "info", "warn", "error"] as const),
   };
 }

@@ -1,6 +1,6 @@
 # Slack app setup
 
-This document sets up one local development Slack app for `cxsl`. It assumes a single workspace, Socket Mode, and Phase 1 behavior: direct messages, assistant threads, and channel app mentions.
+This document sets up one local development Slack app for `cxsl`. It assumes a single workspace, Socket Mode, direct messages, assistant threads, channel app mentions, streaming responses, and Slack approval buttons.
 
 ## 1. Create the Slack app
 
@@ -18,7 +18,7 @@ The manifest enables:
 - Bot user presence set to always online.
 - App Home Messages tab with user messages enabled.
 - Agents & AI Apps assistant view.
-- Interactivity for later approval buttons.
+- Interactivity for approval buttons.
 - Events for `app_mention`, `message.channels`, `message.im`, `assistant_thread_started`, and `assistant_thread_context_changed`.
 
 ## 2. Install and collect tokens
@@ -77,7 +77,7 @@ Expected startup behavior:
 - The worker spawns one shared `codex app-server` process.
 - SQLite state is created at `.data/cxsl.sqlite` unless `DATABASE_PATH` overrides it.
 
-Socket Mode does not require a public Request URL or ngrok for this Phase 1 setup.
+Socket Mode does not require a public Request URL or ngrok for this local setup.
 
 ## 5. Try it in Slack
 
@@ -104,14 +104,16 @@ Assistant thread:
 
 The assistant side panel is backed by Slack's `assistant_thread_started`, `assistant_thread_context_changed`, and `message.im` events. Reinstall the app after applying the manifest so Slack sends all three events.
 
-Phase 1 sets a Slack thread status while Codex is generating and then posts the final response with Slack `markdown_text`. Long responses are split before Slack's `markdown_text` character limit. Token streaming and approval buttons are the next phases.
+`cxsl` sets a Slack thread status while Codex is generating and streams the response into the thread. If the Slack streaming API is unavailable, it falls back to posting the final response with Slack `markdown_text`. Long fallback responses are split before Slack's `markdown_text` character limit.
+
+Codex approval requests are posted in the same Slack thread with approve and decline buttons. Natural-language approval replies are ignored; use the buttons so the app-server request can be resolved unambiguously.
 
 ## 6. Response-time feedback
 
 Slack has two relevant APIs for response-time feedback:
 
 - `assistant.threads.setStatus` shows a thread-level loading state while the app is working. `cxsl` calls this immediately with `Thinking...` and clears it after posting a response.
-- `chat.startStream`, `chat.appendStream`, and `chat.stopStream` provide token-by-token streaming. `cxsl` keeps this for Phase 2.
+- `chat.startStream`, `chat.appendStream`, and `chat.stopStream` provide token-by-token streaming. `cxsl` uses these by default.
 
 ## 7. Troubleshooting
 

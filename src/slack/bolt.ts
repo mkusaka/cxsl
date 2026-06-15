@@ -11,7 +11,7 @@ import type { AppConfig } from "../config.ts";
 import type { Logger } from "../logger.ts";
 import type { Orchestrator } from "../orchestrator/orchestrator.ts";
 import { SlackPolicyError } from "../orchestrator/policy.ts";
-import { SlackRenderer } from "./renderer.ts";
+import { SlackRenderer, type SlackWebClientPort } from "./renderer.ts";
 import { shouldIgnoreMessage, stripBotMentions, type SlackInput } from "./input.ts";
 
 export function createSlackApp(
@@ -119,6 +119,16 @@ export function createSlackApp(
       logger,
       input.source !== "channel_thread",
     );
+  });
+
+  app.action("cxsl_approval_approve", async (args) => {
+    await args.ack();
+    await handleApprovalActionFromSlack(orchestrator, "approve", args, logger);
+  });
+
+  app.action("cxsl_approval_decline", async (args) => {
+    await args.ack();
+    await handleApprovalActionFromSlack(orchestrator, "decline", args, logger);
   });
 
   return app;
@@ -351,6 +361,62 @@ function inputDropReason(event: SlackEventSummaryFields & { bot_id?: string }): 
   if (event.channel_type != null && event.channel_type !== "im") return "non_im_message";
   if (typeof event.text !== "string" || event.text.trim() === "") return "empty_text";
   return "missing_required_fields";
+}
+
+async function handleApprovalActionFromSlack(
+  orchestrator: Pick<Orchestrator, "handleApprovalAction">,
+  decision: "approve" | "decline",
+  args: {
+    body: unknown;
+    action: unknown;
+    client: unknown;
+  },
+  logger: Pick<Logger, "debug" | "error">,
+): Promise<void> {
+  const approvalRequestId = extractActionValue(args.action);
+  const actorSlackUserId = extractNestedString(args.body, ["user", "id"]);
+  const channelId = extractNestedString(args.body, ["channel", "id"]);
+  const messageTs = extractNestedString(args.body, ["message", "ts"]);
+
+  if (!approvalRequestId || !actorSlackUserId || !channelId || !messageTs) {
+    logger.debug("approval action ignored", {
+      hasApprovalRequestId: Boolean(approvalRequestId),
+      hasActorSlackUserId: Boolean(actorSlackUserId),
+      hasChannelId: Boolean(channelId),
+      hasMessageTs: Boolean(messageTs),
+    });
+    return;
+  }
+
+  try {
+    await orchestrator.handleApprovalAction({
+      approvalRequestId,
+      actorSlackUserId,
+      decision,
+      channelId,
+      messageTs,
+      renderer: new SlackRenderer(args.client as SlackWebClientPort, logger),
+    });
+  } catch (error) {
+    logger.error("approval action failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
+function extractActionValue(action: unknown): string | null {
+  if (!action || typeof action !== "object" || !("value" in action)) return null;
+  const value = action.value;
+  return typeof value === "string" ? value : null;
+}
+
+function extractNestedString(value: unknown, path: string[]): string | null {
+  let current = value;
+  for (const key of path) {
+    if (!current || typeof current !== "object" || !(key in current)) return null;
+    current = (current as Record<string, unknown>)[key];
+  }
+  return typeof current === "string" ? current : null;
 }
 
 function slackLogLevel(level: AppConfig["logLevel"]): LogLevel {

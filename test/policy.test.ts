@@ -22,7 +22,6 @@ function config(overrides: Partial<AppConfig> = {}): AppConfig {
     codexSandbox: "workspace-write",
     allowedUserIds: new Set(),
     allowedChannelIds: new Set(),
-    streamingEnabled: false,
     logLevel: "error",
     ...overrides,
   };

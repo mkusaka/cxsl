@@ -1,8 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import type { TurnRunResult } from "../src/codex/protocol.ts";
+import type { CodexServerRequest, TurnRunResult } from "../src/codex/protocol.ts";
 import type { AppConfig } from "../src/config.ts";
-import type { AgentSession, AgentTurn, SlackThread } from "../src/db/repositories.ts";
+import type {
+  AgentSession,
+  AgentTurn,
+  ApprovalRequest,
+  SlackThread,
+} from "../src/db/repositories.ts";
 import type { Logger } from "../src/logger.ts";
 import {
   Orchestrator,
@@ -29,7 +34,6 @@ function config(overrides: Partial<AppConfig> = {}): AppConfig {
     codexSandbox: "workspace-write",
     allowedUserIds: new Set(),
     allowedChannelIds: new Set(),
-    streamingEnabled: false,
     logLevel: "error",
     ...overrides,
   };
@@ -48,7 +52,7 @@ function input(overrides: Partial<SlackInput> = {}): SlackInput {
   };
 }
 
-type TestLogger = Pick<Logger, "error"> & {
+type TestLogger = Pick<Logger, "debug" | "error"> & {
   errors: Record<string, unknown>[];
 };
 
@@ -56,6 +60,7 @@ function createLogger(): TestLogger {
   const errors: Record<string, unknown>[] = [];
   return {
     errors,
+    debug() {},
     error(_message: string, fields: Record<string, unknown> = {}) {
       errors.push(fields);
     },
@@ -71,6 +76,8 @@ type TestCodex = OrchestratorCodexClient & {
   startedThreads: StartThreadInput[];
   resumedThreads: string[];
   turns: RunTurnInput[];
+  notificationHandlers: NotificationHandler[];
+  serverRequestHandlers: ServerRequestHandler[];
   runTurn: OrchestratorCodexClient["runTurn"];
 };
 
@@ -85,12 +92,20 @@ function createCodex(
   const startedThreads: StartThreadInput[] = [];
   const resumedThreads: string[] = [];
   const turns: RunTurnInput[] = [];
+  const notificationHandlers: NotificationHandler[] = [];
+  const serverRequestHandlers: ServerRequestHandler[] = [];
   return {
     startedThreads,
     resumedThreads,
     turns,
-    onNotification(_handler: NotificationHandler) {},
-    onServerRequest(_handler: ServerRequestHandler) {},
+    notificationHandlers,
+    serverRequestHandlers,
+    onNotification(handler: NotificationHandler) {
+      notificationHandlers.push(handler);
+    },
+    onServerRequest(handler: ServerRequestHandler) {
+      serverRequestHandlers.push(handler);
+    },
     async startThread(payload: StartThreadInput) {
       startedThreads.push(payload);
       return { threadId: "thread-1" };
@@ -107,21 +122,58 @@ function createCodex(
 
 type SetStatusInput = Parameters<SlackOutput["setAssistantStatus"]>[0];
 type PostMessageInput = Parameters<SlackOutput["postThreadMessage"]>[0];
+type AppendStreamInput = Parameters<SlackOutput["appendThreadStream"]>[0];
+type StopStreamInput = Parameters<SlackOutput["stopThreadStream"]>[0];
+type ApprovalPostInput = Parameters<SlackOutput["postApprovalRequest"]>[0];
+type ApprovalUpdateInput = Parameters<SlackOutput["updateApprovalRequest"]>[0];
 
 function createRenderer(): SlackOutput & {
   statuses: SetStatusInput[];
   messages: PostMessageInput[];
+  streamStarts: { channelId: string; threadTs: string }[];
+  streamAppends: AppendStreamInput[];
+  streamStops: StopStreamInput[];
+  approvals: (ApprovalPostInput & { messageTs: string })[];
+  approvalUpdates: ApprovalUpdateInput[];
 } {
   const statuses: SetStatusInput[] = [];
   const messages: PostMessageInput[] = [];
+  const streamStarts: { channelId: string; threadTs: string }[] = [];
+  const streamAppends: AppendStreamInput[] = [];
+  const streamStops: StopStreamInput[] = [];
+  const approvals: (ApprovalPostInput & { messageTs: string })[] = [];
+  const approvalUpdates: ApprovalUpdateInput[] = [];
   return {
     statuses,
     messages,
+    streamStarts,
+    streamAppends,
+    streamStops,
+    approvals,
+    approvalUpdates,
     async setAssistantStatus(payload: SetStatusInput) {
       statuses.push(payload);
     },
     async postThreadMessage(payload: PostMessageInput) {
       messages.push(payload);
+    },
+    async startThreadStream(payload) {
+      streamStarts.push(payload);
+      return { streamTs: "stream-1" };
+    },
+    async appendThreadStream(payload: AppendStreamInput) {
+      streamAppends.push(payload);
+    },
+    async stopThreadStream(payload: StopStreamInput) {
+      streamStops.push(payload);
+    },
+    async postApprovalRequest(payload: ApprovalPostInput) {
+      const messageTs = `approval-message-${approvals.length + 1}`;
+      approvals.push({ ...payload, messageTs });
+      return { messageTs };
+    },
+    async updateApprovalRequest(payload: ApprovalUpdateInput) {
+      approvalUpdates.push(payload);
     },
   };
 }
@@ -137,6 +189,7 @@ type TestRepos = OrchestratorRepositories & {
   completions: CompleteTurnInput[];
   boundThreads: BoundThread[];
   boundTurns: BoundTurn[];
+  approvals: ApprovalRequest[];
   createTurn: OrchestratorRepositories["createTurn"];
 };
 
@@ -158,12 +211,14 @@ function createRepos(sessionOverrides: Partial<AgentSession> = {}): TestRepos {
   const completions: CompleteTurnInput[] = [];
   const boundThreads: BoundThread[] = [];
   const boundTurns: BoundTurn[] = [];
+  const approvals: ApprovalRequest[] = [];
   return {
     session,
     turns,
     completions,
     boundThreads,
     boundTurns,
+    approvals,
     resolveSlackThread(input): SlackThread {
       return {
         id: "slack-thread-1",
@@ -202,10 +257,40 @@ function createRepos(sessionOverrides: Partial<AgentSession> = {}): TestRepos {
       session.state = payload.state === "completed" ? "idle" : payload.state;
     },
     findSessionByCodexThreadId() {
-      return null;
+      return session.codexThreadId ? session : null;
     },
     recordCodexEvent() {},
     recordDeniedApproval() {},
+    recordPendingApproval(payload) {
+      const approval: ApprovalRequest = {
+        id: `approval-${approvals.length + 1}`,
+        sessionId: payload.sessionId,
+        turnId: payload.turnId ?? null,
+        codexRequestId: payload.codexRequestId,
+        requestMethod: payload.requestMethod,
+        codexItemId: payload.codexItemId ?? null,
+        codexApprovalId: payload.codexApprovalId ?? null,
+        slackMessageTs: null,
+        actionType: payload.actionType,
+        command: payload.command ?? null,
+        cwd: payload.cwd ?? null,
+        state: "requested",
+        resolution: null,
+      };
+      approvals.push(approval);
+      return approval;
+    },
+    setApprovalSlackMessage(payload) {
+      const approval = approvals.find((entry) => entry.id === payload.approvalRequestId);
+      if (approval) approval.slackMessageTs = payload.slackMessageTs;
+    },
+    resolveApprovalRequest(payload) {
+      const approval = approvals.find((entry) => entry.id === payload.approvalRequestId);
+      if (!approval || approval.state !== "requested") return null;
+      approval.state = "resolved";
+      approval.resolution = payload.resolution;
+      return approval;
+    },
   };
 }
 
@@ -226,9 +311,102 @@ test("handleSlackInput sets and clears Slack status while Codex runs", async () 
     },
     { channelId: "C123", threadTs: "1710000000.000001", status: "" },
   ]);
-  assert.equal(renderer.messages.at(-1)?.text, "Done");
+  assert.deepEqual(renderer.streamStarts, [{ channelId: "C123", threadTs: "1710000000.000001" }]);
+  assert.deepEqual(renderer.streamStops, [{ channelId: "C123", streamTs: "stream-1", text: "Done" }]);
+  assert.equal(renderer.messages.length, 0);
   assert.equal(codex.startedThreads.length, 1);
   assert.equal(codex.turns.length, 1);
+});
+
+test("handleSlackInput streams Codex deltas by default", async () => {
+  const codex = createCodex();
+  codex.runTurn = async (payload) => {
+    codex.turns.push(payload);
+    await payload.onDelta?.("Do");
+    await payload.onDelta?.("ne");
+    return {
+      threadId: "thread-1",
+      turnId: "turn-1",
+      status: "completed",
+      text: "Done",
+    };
+  };
+  const repos = createRepos();
+  const renderer = createRenderer();
+  const orchestrator = new Orchestrator(config(), repos, codex, createLogger());
+
+  await orchestrator.handleSlackInput(input(), renderer);
+
+  assert.deepEqual(renderer.streamAppends, [
+    { channelId: "D123", streamTs: "stream-1", text: "Do" },
+    { channelId: "D123", streamTs: "stream-1", text: "ne" },
+  ]);
+  assert.deepEqual(renderer.streamStops, [
+    { channelId: "D123", streamTs: "stream-1", text: undefined },
+  ]);
+  assert.equal(renderer.messages.length, 0);
+});
+
+test("handleSlackInput resolves Codex approval requests from Slack buttons", async () => {
+  const codex = createCodex();
+  const repos = createRepos();
+  const renderer = createRenderer();
+  let orchestrator!: Orchestrator;
+
+  codex.runTurn = async (payload) => {
+    codex.turns.push(payload);
+    const handler = codex.serverRequestHandlers[0];
+    assert.ok(handler);
+    const responsePromise = handler({
+      id: "request-1",
+      method: "item/commandExecution/requestApproval",
+      params: {
+        threadId: "thread-1",
+        itemId: "item-1",
+        approvalId: "approval-id-1",
+        command: "pnpm test",
+        cwd: "/tmp/cxsl-test",
+      },
+    } satisfies CodexServerRequest);
+
+    for (let index = 0; index < 5 && renderer.approvals.length === 0; index += 1) {
+      await Promise.resolve();
+    }
+    const approvalMessage = renderer.approvals[0];
+    assert.ok(approvalMessage);
+
+    await orchestrator.handleApprovalAction({
+      approvalRequestId: approvalMessage.approvalRequestId,
+      actorSlackUserId: "U123",
+      decision: "approve",
+      channelId: "D123",
+      messageTs: approvalMessage.messageTs,
+      renderer,
+    });
+
+    assert.deepEqual(await responsePromise, { decision: "accept" });
+    return {
+      threadId: "thread-1",
+      turnId: "turn-1",
+      status: "completed",
+      text: "Done",
+    };
+  };
+
+  orchestrator = new Orchestrator(config(), repos, codex, createLogger());
+
+  await orchestrator.handleSlackInput(input(), renderer);
+
+  assert.equal(repos.approvals[0]?.state, "resolved");
+  assert.equal(repos.approvals[0]?.resolution, "approve");
+  assert.deepEqual(renderer.approvalUpdates, [
+    {
+      channelId: "D123",
+      messageTs: "approval-message-1",
+      title: "Approval approved",
+      text: "Request: item/commandExecution/requestApproval\ncwd: /tmp/cxsl-test\ncommand: pnpm test",
+    },
+  ]);
 });
 
 test("handleSlackInput returns a generic Slack error for failed Codex results", async () => {
@@ -245,7 +423,7 @@ test("handleSlackInput returns a generic Slack error for failed Codex results", 
 
   await orchestrator.handleSlackInput(input(), renderer);
 
-  const message = renderer.messages.at(-1)?.text ?? "";
+  const message = renderer.streamStops.at(-1)?.text ?? "";
   assert.match(message, /^Codex turn failed\. Reference: turn-row-1\.$/);
   assert.equal(message.includes(FAKE_SECRET_SLACK_BOT_TOKEN), false);
 });
@@ -262,7 +440,7 @@ test("handleSlackInput redacts thrown errors before logging and hides them from 
 
   await orchestrator.handleSlackInput(input(), renderer);
 
-  const message = renderer.messages.at(-1)?.text ?? "";
+  const message = renderer.streamStops.at(-1)?.text ?? "";
   assert.equal(message, "Codex turn failed. Reference: turn-row-1.");
   assert.equal(JSON.stringify(logger.errors).includes(FAKE_SECRET_SLACK_APP_TOKEN), false);
   assert.match(JSON.stringify(logger.errors), /<redacted>/);
