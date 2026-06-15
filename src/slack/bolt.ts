@@ -101,14 +101,13 @@ export function createSlackApp(
     );
   });
 
-  app.message(async ({ message, client, context }) => {
-    logger.debug("message event received", summarizeSlackEvent(message, context));
-    const input = dmMessageToInput(message, context) ??
-      channelThreadMessageToInput(message, context, config);
+  app.event("message", async ({ event, client, context }) => {
+    logger.debug("message event received", summarizeSlackEvent(event, context));
+    const input = messageEventToInput(event, context, config);
     if (!input) {
       logger.debug("message event ignored", {
-        reason: inputDropReason(message),
-        ...summarizeSlackEvent(message, context),
+        reason: messageEventDropReason(event, context, config),
+        ...summarizeSlackEvent(event, context),
       });
       return;
     }
@@ -170,13 +169,22 @@ function dmMessageToInput(
   return commonInput("dm", message, context, text);
 }
 
+export function messageEventToInput(
+  message: SlackMessageForInput,
+  context: SlackContext,
+  config: Pick<AppConfig, "allowedChannelIds" | "allowedUserIds">,
+): SlackInput | null {
+  return dmMessageToInput(message, context) ??
+    channelThreadMessageToInput(message, context, config);
+}
+
 export function channelThreadMessageToInput(
   message: SlackMessageForInput,
   context: SlackContext,
   config: Pick<AppConfig, "allowedChannelIds" | "allowedUserIds">,
 ): SlackInput | null {
   if (shouldIgnoreMessage(message)) return null;
-  if (message.channel_type != null && message.channel_type !== "channel") return null;
+  if (!isThreadChannelType(message.channel_type)) return null;
   if (!message.thread_ts || message.thread_ts === message.ts) return null;
 
   const text = message.text?.trim() ?? "";
@@ -294,6 +302,10 @@ function isAsideMessage(text: string): boolean {
   return text.trimStart().startsWith("!aside");
 }
 
+function isThreadChannelType(channelType: string | undefined): boolean {
+  return channelType == null || channelType === "channel" || channelType === "group";
+}
+
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
@@ -360,6 +372,29 @@ function inputDropReason(event: SlackEventSummaryFields & { bot_id?: string }): 
   if (event.user == null) return "missing_user";
   if (event.channel_type != null && event.channel_type !== "im") return "non_im_message";
   if (typeof event.text !== "string" || event.text.trim() === "") return "empty_text";
+  return "missing_required_fields";
+}
+
+function messageEventDropReason(
+  event: SlackEventSummaryFields & { bot_id?: string },
+  context: SlackContext,
+  config: Pick<AppConfig, "allowedChannelIds" | "allowedUserIds">,
+): string {
+  if (event.subtype) return "subtype";
+  if (event.bot_id) return "bot_message";
+  if (event.user == null) return "missing_user";
+  if (event.channel_type === "im") return inputDropReason(event);
+  if (!isThreadChannelType(event.channel_type)) return "non_channel_thread_message";
+  if (!event.thread_ts || event.thread_ts === event.ts) return "root_message";
+
+  const text = event.text?.trim() ?? "";
+  if (!text) return "empty_text";
+  if (mentionsBot(text, context.botUserId)) return "mentioned_bot";
+  if (isAsideMessage(text)) return "aside";
+  if (config.allowedUserIds.size > 0 && !config.allowedUserIds.has(event.user ?? "")) return "disallowed_user";
+  if (config.allowedChannelIds.size > 0 && !config.allowedChannelIds.has(event.channel ?? "")) {
+    return "disallowed_channel";
+  }
   return "missing_required_fields";
 }
 

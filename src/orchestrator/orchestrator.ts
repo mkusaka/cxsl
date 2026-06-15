@@ -160,8 +160,10 @@ export class Orchestrator {
       });
 
       const stream = await renderer.startThreadStream({
+        teamId: input.teamId,
         channelId: input.channelId,
         threadTs: input.threadTs,
+        userId: input.userId,
       });
       streamTs = stream?.streamTs ?? null;
       const activeStreamTs = streamTs;

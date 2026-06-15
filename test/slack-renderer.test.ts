@@ -129,8 +129,10 @@ test("streams thread messages through Slack streaming APIs", async () => {
   const renderer = new SlackRenderer(client, createLogger());
 
   const stream = await renderer.startThreadStream({
+    teamId: "T123",
     channelId: "C123",
     threadTs: "1710000000.000001",
+    userId: "U123",
   });
   assert.deepEqual(stream, { streamTs: "1710000000.999999" });
   await renderer.appendThreadStream({
@@ -147,6 +149,8 @@ test("streams thread messages through Slack streaming APIs", async () => {
     {
       channel: "C123",
       thread_ts: "1710000000.000001",
+      recipient_team_id: "T123",
+      recipient_user_id: "U123",
       markdown_text: "",
     },
   ]);

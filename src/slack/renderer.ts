@@ -50,6 +50,8 @@ export type SlackWebClientPort = {
     startStream?(input: {
       channel: string;
       thread_ts: string;
+      recipient_team_id: string;
+      recipient_user_id: string;
       markdown_text?: string;
     }): Promise<{ ts?: string } | unknown>;
     appendStream?(input: {
@@ -127,8 +129,10 @@ export class SlackRenderer {
   }
 
   async startThreadStream(input: {
+    teamId: string;
     channelId: string;
     threadTs: string;
+    userId: string;
   }): Promise<{ streamTs: string } | null> {
     if (!this.client.chat.startStream) return null;
 
@@ -136,6 +140,8 @@ export class SlackRenderer {
       const response = await this.client.chat.startStream({
         channel: input.channelId,
         thread_ts: input.threadTs,
+        recipient_team_id: input.teamId,
+        recipient_user_id: input.userId,
         markdown_text: "",
       });
       const streamTs = extractSlackTs(response);

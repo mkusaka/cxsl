@@ -21,6 +21,7 @@ oauth_config:
       - assistant:write
       - channels:history
       - chat:write
+      - groups:history
       - im:history
 
 settings:
@@ -32,6 +33,7 @@ settings:
     bot_events:
       - app_mention
       - message.channels
+      - message.groups
       - message.im
       - assistant_thread_started
       - assistant_thread_context_changed

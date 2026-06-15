@@ -5,6 +5,7 @@ import {
   appMentionToInput,
   channelThreadMessageToInput,
   handleSlackInputWithPolicyFeedback,
+  messageEventToInput,
 } from "../src/slack/bolt.ts";
 import { shouldIgnoreMessage, stripBotMentions, type SlackInput } from "../src/slack/input.ts";
 import { SlackRenderer, type SlackWebClientPort } from "../src/slack/renderer.ts";
@@ -184,6 +185,79 @@ test("channelThreadMessageToInput accepts unmentioned channel thread replies", (
     messageTs: "1710000001.000001",
     userId: "U123",
     text: "continue this",
+  });
+});
+
+test("messageEventToInput routes unmentioned channel thread replies", () => {
+  const input = messageEventToInput(
+    {
+      type: "message",
+      channel_type: "channel",
+      team: "T123",
+      channel: "C123",
+      user: "U123",
+      text: "continue this",
+      ts: "1710000001.000001",
+      thread_ts: "1710000000.000001",
+    },
+    { botUserId: "UBOT", teamId: "T123" },
+    config(),
+  );
+
+  assert.deepEqual(input, {
+    source: "channel_thread",
+    teamId: "T123",
+    channelId: "C123",
+    threadTs: "1710000000.000001",
+    messageTs: "1710000001.000001",
+    userId: "U123",
+    text: "continue this",
+  });
+});
+
+test("messageEventToInput uses context team for channel thread messages without event team", () => {
+  const input = messageEventToInput(
+    {
+      type: "message",
+      channel_type: "channel",
+      channel: "C123",
+      user: "U123",
+      text: "continue this",
+      ts: "1710000001.000001",
+      thread_ts: "1710000000.000001",
+    },
+    { botUserId: "UBOT", teamId: "T123" },
+    config(),
+  );
+
+  assert.equal(input?.teamId, "T123");
+  assert.equal(input?.source, "channel_thread");
+});
+
+test("messageEventToInput routes unmentioned private channel thread replies", () => {
+  const input = messageEventToInput(
+    {
+      type: "message",
+      channel_type: "group",
+      team: "T123",
+      channel: "G123",
+      user: "U123",
+      text: "continue this privately",
+      ts: "1710000001.000001",
+      thread_ts: "1710000000.000001",
+    },
+    { botUserId: "UBOT", teamId: "T123" },
+    config(),
+  );
+
+  assert.deepEqual(input, {
+    source: "channel_thread",
+    teamId: "T123",
+    channelId: "G123",
+    threadTs: "1710000000.000001",
+    messageTs: "1710000001.000001",
+    userId: "U123",
+    text: "continue this privately",
   });
 });
 

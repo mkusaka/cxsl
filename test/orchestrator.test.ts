@@ -130,7 +130,7 @@ type ApprovalUpdateInput = Parameters<SlackOutput["updateApprovalRequest"]>[0];
 function createRenderer(): SlackOutput & {
   statuses: SetStatusInput[];
   messages: PostMessageInput[];
-  streamStarts: { channelId: string; threadTs: string }[];
+  streamStarts: { teamId: string; channelId: string; threadTs: string; userId: string }[];
   streamAppends: AppendStreamInput[];
   streamStops: StopStreamInput[];
   approvals: (ApprovalPostInput & { messageTs: string })[];
@@ -138,7 +138,7 @@ function createRenderer(): SlackOutput & {
 } {
   const statuses: SetStatusInput[] = [];
   const messages: PostMessageInput[] = [];
-  const streamStarts: { channelId: string; threadTs: string }[] = [];
+  const streamStarts: { teamId: string; channelId: string; threadTs: string; userId: string }[] = [];
   const streamAppends: AppendStreamInput[] = [];
   const streamStops: StopStreamInput[] = [];
   const approvals: (ApprovalPostInput & { messageTs: string })[] = [];
@@ -311,7 +311,14 @@ test("handleSlackInput sets and clears Slack status while Codex runs", async () 
     },
     { channelId: "C123", threadTs: "1710000000.000001", status: "" },
   ]);
-  assert.deepEqual(renderer.streamStarts, [{ channelId: "C123", threadTs: "1710000000.000001" }]);
+  assert.deepEqual(renderer.streamStarts, [
+    {
+      teamId: "T123",
+      channelId: "C123",
+      threadTs: "1710000000.000001",
+      userId: "U123",
+    },
+  ]);
   assert.deepEqual(renderer.streamStops, [{ channelId: "C123", streamTs: "stream-1", text: "Done" }]);
   assert.equal(renderer.messages.length, 0);
   assert.equal(codex.startedThreads.length, 1);

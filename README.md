@@ -7,14 +7,14 @@ Slack gateway for Codex app-server.
 `cxsl` keeps the Slack surface intentionally small:
 
 - Direct messages: handle `message.im`.
-- Channel threads: handle `app_mention`; public channel thread replies from allowed users can continue without mentioning the app.
+- Channel threads: handle `app_mention`; public and private channel thread replies from allowed users can continue without mentioning the app.
 - Slack assistant surface: handle `assistant_thread_started` and continue the assistant thread through the Codex app-server.
 - Codex runtime: call a shared `codex app-server` stdio process from the worker.
 - State: persist Slack thread/session/turn/approval audit data in SQLite.
 - Responses: stream Codex output with Slack `chat.startStream`, `chat.appendStream`, and `chat.stopStream`.
 - Approvals: post Slack approve/decline buttons for Codex app-server approval requests. Natural-language approvals are not accepted.
 
-In public channel threads, unmentioned replies that start with `!aside` are ignored. Mentioning the app still sends the message to Codex.
+In channel threads, unmentioned replies that start with `!aside` are ignored. Mentioning the app still sends the message to Codex.
 
 Out of scope for v0.1:
 
@@ -24,7 +24,7 @@ Out of scope for v0.1:
 
 ## Slack app setup
 
-Create or update a Slack app from `manifest.yml`. For the full click-by-click setup, see [docs/slack-setup.md](docs/slack-setup.md).
+Create or update a Slack app from `manifest.yml`. Updating this file does not change an installed Slack app by itself; apply the manifest in Slack and reinstall the app after changing scopes or event subscriptions. For the full click-by-click setup, see [docs/slack-setup.md](docs/slack-setup.md).
 
 The manifest enables Socket Mode, Interactivity for approval buttons, and Events API subscriptions. After installing the app, create an app-level token with `connections:write` for Socket Mode and store it as `SLACK_APP_TOKEN`.
 
@@ -32,6 +32,7 @@ Bot scopes:
 
 - `app_mentions:read` for channel mentions.
 - `channels:history` for public channel thread replies without an app mention.
+- `groups:history` for private channel thread replies without an app mention.
 - `im:history` for direct messages to the app.
 - `chat:write` for thread replies and approval messages.
 - `assistant:write` for the Slack assistant surface.
@@ -40,6 +41,7 @@ Subscribed bot events:
 
 - `app_mention`
 - `message.channels`
+- `message.groups`
 - `message.im`
 - `assistant_thread_started`
 - `assistant_thread_context_changed`

@@ -19,7 +19,7 @@ The manifest enables:
 - App Home Messages tab with user messages enabled.
 - Agents & AI Apps assistant view.
 - Interactivity for approval buttons.
-- Events for `app_mention`, `message.channels`, `message.im`, `assistant_thread_started`, and `assistant_thread_context_changed`.
+- Events for `app_mention`, `message.channels`, `message.groups`, `message.im`, `assistant_thread_started`, and `assistant_thread_context_changed`.
 
 ## 2. Install and collect tokens
 
@@ -93,7 +93,7 @@ Channel mention:
 2. Send `@cxsl Inspect this repo`.
 3. Continue the same thread by mentioning the app again, or by posting a normal thread reply.
 
-Plain public channel root messages are ignored. Plain public channel thread replies are sent to Codex unless they start with `!aside`. If `SLACK_ALLOWED_USER_IDS` is set, only those users' plain thread replies are sent to Codex. Mentioning the app still sends the message to Codex, including messages that start with `!aside`.
+Plain channel root messages are ignored. Plain public and private channel thread replies are sent to Codex unless they start with `!aside`. If `SLACK_ALLOWED_USER_IDS` is set, only those users' plain thread replies are sent to Codex. Mentioning the app still sends the message to Codex, including messages that start with `!aside`.
 
 Assistant thread:
 
@@ -132,7 +132,9 @@ If app mentions do not work:
 
 - Confirm the app is invited to the channel.
 - Confirm `app_mentions:read` and `chat:write` are present under bot scopes.
-- Confirm `channels:history` is present if unmentioned public channel thread replies do not work.
+- If unmentioned public channel thread replies never reach the server, confirm `message.channels` is subscribed and `channels:history` is present in the installed Slack app.
+- If unmentioned private channel thread replies never reach the server, confirm `message.groups` is subscribed and `groups:history` is present in the installed Slack app.
+- Reinstall the app after applying the manifest; changing `manifest.yml` locally is not enough.
 - Confirm the channel is allowed by `SLACK_ALLOWED_CHANNEL_IDS`, if set.
 
 If assistant threads do not work:
@@ -156,6 +158,7 @@ Required bot scopes in [`../manifest.yml`](../manifest.yml):
 - `assistant:write`
 - `channels:history`
 - `chat:write`
+- `groups:history`
 - `im:history`
 
 Required app-level token scope:
@@ -165,7 +168,6 @@ Required app-level token scope:
 Optional future additions:
 
 - `commands` scope and slash command definitions, once `/codex status` and related control-plane commands are implemented.
-- `groups:history` and `message.groups`, only if unmentioned private channel thread replies are explicitly added.
 
 ## 9. References
 
