@@ -23,6 +23,7 @@ oauth_config:
       - chat:write
       - groups:history
       - im:history
+      - users:read
 
 settings:
   socket_mode_enabled: true

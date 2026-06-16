@@ -12,6 +12,7 @@ import type { Logger } from "../logger.ts";
 import type { Orchestrator } from "../orchestrator/orchestrator.ts";
 import { SlackPolicyError } from "../orchestrator/policy.ts";
 import { SlackRenderer, type SlackWebClientPort } from "./renderer.ts";
+import { SlackThreadContextFetcher } from "./thread-context.ts";
 import { shouldIgnoreMessage, stripBotMentions, type SlackInput } from "./input.ts";
 
 export function createSlackApp(
@@ -36,6 +37,7 @@ export function createSlackApp(
       error: error instanceof Error ? error.message : String(error),
     });
   });
+  const threadContextFetcher = new SlackThreadContextFetcher(logger);
 
   const assistant = new Assistant({
     threadStarted: async ({ event, context, say, setSuggestedPrompts, saveThreadContext }) => {
@@ -76,6 +78,12 @@ export function createSlackApp(
         new SlackRenderer(client, logger),
         logger,
         true,
+        {
+          threadContextProvider: threadContextFetcher.providerFor(
+            client as SlackWebClientPort,
+            context.botUserId,
+          ),
+        },
       );
     },
   });
@@ -98,6 +106,12 @@ export function createSlackApp(
       new SlackRenderer(client, logger),
       logger,
       true,
+      {
+        threadContextProvider: threadContextFetcher.providerFor(
+          client as SlackWebClientPort,
+          context.botUserId,
+        ),
+      },
     );
   });
 
@@ -117,6 +131,12 @@ export function createSlackApp(
       new SlackRenderer(client, logger),
       logger,
       input.source !== "channel_thread",
+      {
+        threadContextProvider: threadContextFetcher.providerFor(
+          client as SlackWebClientPort,
+          context.botUserId,
+        ),
+      },
     );
   });
 
@@ -262,9 +282,10 @@ export async function handleSlackInputWithPolicyFeedback(
   renderer: SlackRenderer,
   logger: Pick<Logger, "debug">,
   notifyPolicyErrors: boolean,
+  options?: Parameters<Orchestrator["handleSlackInput"]>[2],
 ): Promise<void> {
   try {
-    await orchestrator.handleSlackInput(input, renderer);
+    await orchestrator.handleSlackInput(input, renderer, options);
   } catch (error) {
     if (!(error instanceof SlackPolicyError)) throw error;
 

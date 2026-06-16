@@ -36,6 +36,7 @@ Bot scopes:
 - `im:history` for direct messages to the app.
 - `chat:write` for thread replies and approval messages.
 - `assistant:write` for the Slack assistant surface.
+- `users:read` for resolving Slack user IDs in fetched thread context.
 
 Subscribed bot events:
 

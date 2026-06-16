@@ -97,6 +97,8 @@ Channel mention:
 
 Plain channel root messages are ignored. Plain public and private channel thread replies are sent to Codex unless they start with `!aside`. If `SLACK_ALLOWED_USER_IDS` is set, only those users' plain thread replies are sent to Codex. Mentioning the app still sends the message to Codex, including messages that start with `!aside`.
 
+When the app is mentioned in an existing channel thread for the first time, `cxsl` fetches recent prior messages from that Slack thread and prepends them to the Codex turn. Later replies in the same Codex session use the existing Codex thread history instead of fetching the same Slack context again.
+
 Assistant thread:
 
 1. Open the app's assistant surface in Slack.
@@ -162,6 +164,7 @@ Required bot scopes in [`../manifest.yml`](../manifest.yml):
 - `chat:write`
 - `groups:history`
 - `im:history`
+- `users:read`
 
 Required app-level token scope:
 

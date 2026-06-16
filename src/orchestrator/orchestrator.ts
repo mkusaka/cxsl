@@ -6,6 +6,7 @@ import type { AgentSession, ApprovalResolution, Repositories } from "../db/repos
 import { redactSensitiveText } from "../security/redaction.ts";
 import type { SlackInput } from "../slack/input.ts";
 import type { SlackRenderer } from "../slack/renderer.ts";
+import type { SlackThreadContextProvider } from "../slack/thread-context.ts";
 import { assertAllowed } from "./policy.ts";
 
 const APPROVAL_TIMEOUT_MS = 10 * 60 * 1000;
@@ -60,6 +61,10 @@ type PendingApproval = {
   resolve: (result: unknown) => void;
 };
 
+type SlackInputOptions = {
+  threadContextProvider?: SlackThreadContextProvider;
+};
+
 export class Orchestrator {
   private readonly config: AppConfig;
   private readonly repos: OrchestratorRepositories;
@@ -82,7 +87,11 @@ export class Orchestrator {
     this.codex.onServerRequest((request) => this.recordAndRequestApproval(request));
   }
 
-  async handleSlackInput(input: SlackInput, renderer: SlackOutput): Promise<void> {
+  async handleSlackInput(
+    input: SlackInput,
+    renderer: SlackOutput,
+    options: SlackInputOptions = {},
+  ): Promise<void> {
     assertAllowed(this.config, input);
 
     if (!input.text.trim()) {
@@ -119,6 +128,7 @@ export class Orchestrator {
     }
 
     const generation = session.activeGeneration + 1;
+    const shouldPrependThreadContext = shouldFetchThreadContext(input, session);
     const turn = this.repos.createTurn({
       sessionId: session.id,
       generation,
@@ -158,6 +168,11 @@ export class Orchestrator {
         channelId: input.channelId,
         threadTs: input.threadTs,
       });
+      const codexInputText = await this.prepareCodexInputText(
+        input,
+        shouldPrependThreadContext,
+        options.threadContextProvider,
+      );
 
       const stream = await renderer.startThreadStream({
         teamId: input.teamId,
@@ -170,7 +185,7 @@ export class Orchestrator {
 
       const result = await this.codex.runTurn({
         threadId: codexThreadId,
-        text: input.text,
+        text: codexInputText,
         cwd: this.config.codexDefaultCwd,
         clientUserMessageId: input.messageTs,
         onDelta: activeStreamTs
@@ -270,6 +285,29 @@ export class Orchestrator {
     });
     this.repos.bindCodexThread(session.id, threadId);
     return threadId;
+  }
+
+  private async prepareCodexInputText(
+    input: SlackInput,
+    shouldPrependThreadContext: boolean,
+    provider: SlackThreadContextProvider | undefined,
+  ): Promise<string> {
+    if (!shouldPrependThreadContext || !provider) return input.text;
+
+    try {
+      const context = await provider.fetchThreadContext({
+        teamId: input.teamId,
+        channelId: input.channelId,
+        threadTs: input.threadTs,
+        currentTs: input.messageTs,
+      });
+      return context ? context + input.text : input.text;
+    } catch (error) {
+      this.logger.debug("slack thread context skipped", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return input.text;
+    }
   }
 
   private recordCodexNotification(notification: CodexNotification): void {
@@ -478,6 +516,13 @@ function formatFinalText(result: {
     return failureMessage(referenceId);
   }
   return result.text.trim() || "Codex returned an empty response.";
+}
+
+function shouldFetchThreadContext(input: SlackInput, session: AgentSession): boolean {
+  if (input.threadTs === input.messageTs) return false;
+  if (input.source !== "app_mention" && input.source !== "channel_thread") return false;
+  if (session.codexThreadId) return false;
+  return session.activeGeneration === 0;
 }
 
 function failureMessage(referenceId: string): string {

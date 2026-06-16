@@ -33,6 +33,19 @@ export type SlackWebClientPort = {
       }): Promise<unknown>;
     };
   };
+  conversations?: {
+    replies(input: {
+      channel: string;
+      ts: string;
+      limit?: number;
+      inclusive?: boolean;
+    }): Promise<{ messages?: SlackConversationMessage[] } | unknown>;
+  };
+  users?: {
+    info(input: {
+      user: string;
+    }): Promise<{ user?: SlackUserInfo } | unknown>;
+  };
   chat: {
     postMessage(input: SlackPostMessageInput): Promise<{ ts?: string } | unknown>;
     update?(input: {
@@ -64,6 +77,25 @@ export type SlackWebClientPort = {
       ts: string;
       markdown_text?: string;
     }): Promise<unknown>;
+  };
+};
+
+export type SlackConversationMessage = {
+  ts?: string;
+  user?: string;
+  bot_id?: string;
+  subtype?: string;
+  team?: string;
+  username?: string;
+  text?: string;
+};
+
+export type SlackUserInfo = {
+  name?: string;
+  real_name?: string;
+  profile?: {
+    display_name?: string;
+    real_name?: string;
   };
 };
 

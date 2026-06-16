@@ -16,6 +16,7 @@ import {
   type SlackOutput,
 } from "../src/orchestrator/orchestrator.ts";
 import type { SlackInput } from "../src/slack/input.ts";
+import type { SlackThreadContextProvider } from "../src/slack/thread-context.ts";
 
 const FAKE_SLACK_BOT_TOKEN = "xox" + "b-redacted";
 const FAKE_SLACK_APP_TOKEN = "xap" + "p-redacted";
@@ -323,6 +324,75 @@ test("handleSlackInput sets and clears Slack status while Codex runs", async () 
   assert.equal(renderer.messages.length, 0);
   assert.equal(codex.startedThreads.length, 1);
   assert.equal(codex.turns.length, 1);
+});
+
+test("handleSlackInput prepends fetched Slack thread context on the first thread turn", async () => {
+  const codex = createCodex();
+  const repos = createRepos();
+  const renderer = createRenderer();
+  const fetches: Parameters<SlackThreadContextProvider["fetchThreadContext"]>[0][] = [];
+  const threadContextProvider: SlackThreadContextProvider = {
+    async fetchThreadContext(payload) {
+      fetches.push(payload);
+      return "[Thread context - prior messages in this thread (not yet in conversation history):]\nAlice: prior\n[End of thread context]\n\n";
+    },
+  };
+  const orchestrator = new Orchestrator(config(), repos, codex, createLogger());
+
+  await orchestrator.handleSlackInput(
+    input({
+      source: "app_mention",
+      channelId: "C123",
+      threadTs: "1710000000.000001",
+      messageTs: "1710000001.000001",
+      text: "what should we do?",
+    }),
+    renderer,
+    { threadContextProvider },
+  );
+
+  assert.deepEqual(fetches, [
+    {
+      teamId: "T123",
+      channelId: "C123",
+      threadTs: "1710000000.000001",
+      currentTs: "1710000001.000001",
+    },
+  ]);
+  assert.equal(
+    codex.turns[0]?.text,
+    "[Thread context - prior messages in this thread (not yet in conversation history):]\nAlice: prior\n[End of thread context]\n\nwhat should we do?",
+  );
+  assert.equal(repos.turns[0]?.inputText, "what should we do?");
+});
+
+test("handleSlackInput skips Slack thread context when resuming an existing Codex thread", async () => {
+  const codex = createCodex();
+  const repos = createRepos({ codexThreadId: "thread-existing", activeGeneration: 2 });
+  const renderer = createRenderer();
+  let fetchCount = 0;
+  const threadContextProvider: SlackThreadContextProvider = {
+    async fetchThreadContext() {
+      fetchCount += 1;
+      return "context";
+    },
+  };
+  const orchestrator = new Orchestrator(config(), repos, codex, createLogger());
+
+  await orchestrator.handleSlackInput(
+    input({
+      source: "channel_thread",
+      channelId: "C123",
+      threadTs: "1710000000.000001",
+      messageTs: "1710000001.000001",
+      text: "continue",
+    }),
+    renderer,
+    { threadContextProvider },
+  );
+
+  assert.equal(fetchCount, 0);
+  assert.equal(codex.turns[0]?.text, "continue");
 });
 
 test("handleSlackInput streams Codex deltas by default", async () => {
