@@ -1,6 +1,5 @@
 # cxsl
-
-Slack gateway for Codex app-server.
+`cxsl` is a Slack gateway for Codex app-server.
 
 ## Current behavior
 
