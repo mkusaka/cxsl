@@ -16,8 +16,8 @@ importers:
         version: 1.4.2(typescript@6.0.3)
     devDependencies:
       '@slack/types':
-        specifier: 2.21.1
-        version: 2.21.1
+        specifier: 2.22.0
+        version: 2.22.0
       '@types/node':
         specifier: 25.9.4
         version: 25.9.4
@@ -45,8 +45,8 @@ packages:
     resolution: {integrity: sha512-qYy07je71WnEHgRwmw12DlAnZLi5HXmdlI2WUzUK2LH/rYXQpP6uEg462S5CwfE8FoCKUdIigHtYnOOfzZH1lQ==}
     engines: {node: '>= 18', npm: '>= 8.6.0'}
 
-  '@slack/types@2.21.1':
-    resolution: {integrity: sha512-I8vmSjNYWsaxuWPx6dz4yeh0h7vRBWbgAMK14LEmblbZ404BtrPbXs6jDPx4cYgGf8msDGF4A9opLZBu21FViQ==}
+  '@slack/types@2.22.0':
+    resolution: {integrity: sha512-sZ9lIgJhPX2qft/tKWiklFlc0o1FWeI7QtciZJfW1+ErH1eGGHvOZ8e73sleTCFEFJp1q/R0WeS8Oa7AsiDprg==}
     engines: {node: '>= 12.13.0', npm: '>= 6.12.0'}
 
   '@slack/web-api@7.17.0':
@@ -525,7 +525,7 @@ snapshots:
       '@slack/logger': 4.0.1
       '@slack/oauth': 3.0.5
       '@slack/socket-mode': 2.0.7
-      '@slack/types': 2.21.1
+      '@slack/types': 2.22.0
       '@slack/web-api': 7.17.0
       '@types/express': 5.0.6
       axios: 1.17.0
@@ -568,12 +568,12 @@ snapshots:
       - supports-color
       - utf-8-validate
 
-  '@slack/types@2.21.1': {}
+  '@slack/types@2.22.0': {}
 
   '@slack/web-api@7.17.0':
     dependencies:
       '@slack/logger': 4.0.1
-      '@slack/types': 2.21.1
+      '@slack/types': 2.22.0
       '@types/node': 25.9.4
       '@types/retry': 0.12.0
       axios: 1.17.0
