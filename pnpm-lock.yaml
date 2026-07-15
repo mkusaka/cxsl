@@ -19,8 +19,8 @@ importers:
         specifier: 2.22.0
         version: 2.22.0
       '@types/node':
-        specifier: 25.9.4
-        version: 25.9.4
+        specifier: 25.9.5
+        version: 25.9.5
       typescript:
         specifier: 7.0.2
         version: 7.0.2
@@ -76,6 +76,9 @@ packages:
 
   '@types/node@25.9.4':
     resolution: {integrity: sha512-dszCsrKb5U7ZsVZBWiHFklTloVl0mSEnWH/iZXfZUlI4rzCUnsvGmgqfuVRHL54ugE7/wRuxEIXRa2iMZ+BG6g==}
+
+  '@types/node@25.9.5':
+    resolution: {integrity: sha512-OScDchr2fwuUmWdf4kZ9h7PcJiYDVInhJizG/biAq3cAvqwYktuy/TYGGdZNMtNTFUP7rnb0NU4TUdm82kt4Rg==}
 
   '@types/qs@6.15.1':
     resolution: {integrity: sha512-GZHUBZR9hckSUhrxmp1nG6NwdpM9fCunJwyThLW1X3AyHgd9IlHb6VANpQQqDr2o/qQp6McZ3y/IA2rVzKzSbw==}
@@ -661,14 +664,14 @@ snapshots:
 
   '@slack/logger@4.0.1':
     dependencies:
-      '@types/node': 25.9.4
+      '@types/node': 25.9.5
 
   '@slack/oauth@3.0.5':
     dependencies:
       '@slack/logger': 4.0.1
       '@slack/web-api': 7.17.0
       '@types/jsonwebtoken': 9.0.10
-      '@types/node': 25.9.4
+      '@types/node': 25.9.5
       jsonwebtoken: 9.0.3
     transitivePeerDependencies:
       - debug
@@ -678,7 +681,7 @@ snapshots:
     dependencies:
       '@slack/logger': 4.0.1
       '@slack/web-api': 7.17.0
-      '@types/node': 25.9.4
+      '@types/node': 25.9.5
       '@types/ws': 8.18.1
       eventemitter3: 5.0.4
       ws: 8.21.0
@@ -694,7 +697,7 @@ snapshots:
     dependencies:
       '@slack/logger': 4.0.1
       '@slack/types': 2.22.0
-      '@types/node': 25.9.4
+      '@types/node': 25.9.5
       '@types/retry': 0.12.0
       axios: 1.17.0
       eventemitter3: 5.0.4
@@ -735,11 +738,15 @@ snapshots:
   '@types/jsonwebtoken@9.0.10':
     dependencies:
       '@types/ms': 2.1.0
-      '@types/node': 25.9.4
+      '@types/node': 25.9.5
 
   '@types/ms@2.1.0': {}
 
   '@types/node@25.9.4':
+    dependencies:
+      undici-types: 7.24.6
+
+  '@types/node@25.9.5':
     dependencies:
       undici-types: 7.24.6
 
@@ -760,7 +767,7 @@ snapshots:
 
   '@types/ws@8.18.1':
     dependencies:
-      '@types/node': 25.9.4
+      '@types/node': 25.9.5
 
   '@typescript/typescript-aix-ppc64@7.0.2':
     optional: true
