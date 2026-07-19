@@ -17,7 +17,7 @@
     "generate:codex-schema": "codex app-server generate-ts --out .codex-schema/app-server"
   },
   "dependencies": {
-    "@slack/bolt": "^4.7.3",
+    "@slack/bolt": "^5.0.0",
     "valibot": "^1.4.1"
   },
   "devDependencies": {
