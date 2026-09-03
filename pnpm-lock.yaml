@@ -16,8 +16,8 @@ importers:
         version: 1.4.2(typescript@7.0.2)
     devDependencies:
       '@slack/types':
-        specifier: 3.0.0
-        version: 3.0.0
+        specifier: 3.1.0
+        version: 3.1.0
       '@types/node':
         specifier: 25.9.5
         version: 25.9.5
@@ -47,8 +47,8 @@ packages:
     peerDependencies:
       undici: ^7.0.0
 
-  '@slack/types@3.0.0':
-    resolution: {integrity: sha512-KNOqpnNAlsFt5Jk9XBclslQ0lobRIg/0tnhpmvZJAglHJx9E8oceN8hC3gaBzkR6UzQ9Wzq4rLsJ98wUcxWPfw==}
+  '@slack/types@3.1.0':
+    resolution: {integrity: sha512-bTzqrO3lxJ5iWedo1eJKNAs1koyEhaTwKLJUkD3KETnPeQvD978AAE4jvWstUws8Gbbc4JR6iYE6F7XjE8UGmw==}
     engines: {node: '>= 20', npm: '>=9.6.4'}
 
   '@slack/web-api@8.0.0':
@@ -574,7 +574,7 @@ snapshots:
       '@slack/logger': 5.0.0
       '@slack/oauth': 4.0.0
       '@slack/socket-mode': 3.0.0(undici@7.28.0)
-      '@slack/types': 3.0.0
+      '@slack/types': 3.1.0
       '@slack/web-api': 8.0.0
       '@types/express': 5.0.6
       express: 5.2.1
@@ -605,12 +605,12 @@ snapshots:
       eventemitter3: 5.0.4
       undici: 7.28.0
 
-  '@slack/types@3.0.0': {}
+  '@slack/types@3.1.0': {}
 
   '@slack/web-api@8.0.0':
     dependencies:
       '@slack/logger': 5.0.0
-      '@slack/types': 3.0.0
+      '@slack/types': 3.1.0
       '@types/node': 25.9.5
       '@types/retry': 0.12.0
       eventemitter3: 5.0.4
