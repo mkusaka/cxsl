@@ -4,7 +4,7 @@
   "description": "Slack gateway for Codex app-server",
   "type": "module",
   "private": true,
-  "packageManager": "pnpm@12.3.4",
+  "packageManager": "pnpm@12.4.0",
   "engines": {
     "node": ">=24.0.0"
   },
