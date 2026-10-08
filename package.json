@@ -21,7 +21,7 @@
     "valibot": "^1.4.1"
   },
   "devDependencies": {
-    "@slack/types": "3.1.0",
+    "@slack/types": "3.2.0",
     "@types/node": "25.9.8",
     "typescript": "7.0.2"
   }
