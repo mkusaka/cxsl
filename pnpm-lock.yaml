@@ -174,8 +174,8 @@ importers:
         version: 1.5.0(typescript@7.0.2)
     devDependencies:
       '@slack/types':
-        specifier: 3.1.0
-        version: 3.1.0
+        specifier: 3.2.0
+        version: 3.2.0
       '@types/node':
         specifier: 25.9.8
         version: 25.9.8
@@ -205,8 +205,8 @@ packages:
     peerDependencies:
       undici: ^7.0.0
 
-  '@slack/types@3.1.0':
-    resolution: {integrity: sha512-bTzqrO3lxJ5iWedo1eJKNAs1koyEhaTwKLJUkD3KETnPeQvD978AAE4jvWstUws8Gbbc4JR6iYE6F7XjE8UGmw==}
+  '@slack/types@3.2.0':
+    resolution: {integrity: sha512-IN4gdtlzQt8UJoj+1v+qAHeR4TxHO0KMlIs841SFfDQAcFFnsrWaGsEAE4goxVt8O/JOAFaGGdrFTzhNBop/Fg==}
     engines: {node: '>= 20', npm: '>=9.6.4'}
 
   '@slack/web-api@8.0.0':
@@ -240,9 +240,6 @@ packages:
 
   '@types/node@25.9.5':
     resolution: {integrity: sha512-OScDchr2fwuUmWdf4kZ9h7PcJiYDVInhJizG/biAq3cAvqwYktuy/TYGGdZNMtNTFUP7rnb0NU4TUdm82kt4Rg==}
-
-  '@types/node@25.9.7':
-    resolution: {integrity: sha512-Y+axoNWOFLvDNFxNbDA+kqqV05imHwTu5bZWWO6tQM3Y2NX1jvzUJkYlf4nYnMCnvu4wQBKW6Nr+ok6yHWA9aQ==}
 
   '@types/node@25.9.8':
     resolution: {integrity: sha512-VfMrScDmMhUJQmd5hArdQnFvK0OIeD36uN2Va1FcpYaLB/BgkgM8Ulc50XtYISPMz7APJ30+N0T5EM0jlcdfRw==}
@@ -745,7 +742,7 @@ snapshots:
       '@slack/logger': 5.0.0
       '@slack/oauth': 4.0.0
       '@slack/socket-mode': 3.0.1(undici@7.28.0)
-      '@slack/types': 3.1.0
+      '@slack/types': 3.2.0
       '@slack/web-api': 8.1.1
       '@types/express': 5.0.6
       express: 5.2.1
@@ -776,13 +773,13 @@ snapshots:
       eventemitter3: 5.0.4
       undici: 7.28.0
 
-  '@slack/types@3.1.0': {}
+  '@slack/types@3.2.0': {}
 
   '@slack/web-api@8.0.0':
     dependencies:
       '@slack/logger': 5.0.0
-      '@slack/types': 3.1.0
-      '@types/node': 25.9.5
+      '@slack/types': 3.2.0
+      '@types/node': 25.9.8
       '@types/retry': 0.12.0
       eventemitter3: 5.0.4
       p-queue: 6.6.2
@@ -792,8 +789,8 @@ snapshots:
   '@slack/web-api@8.1.1':
     dependencies:
       '@slack/logger': 5.0.0
-      '@slack/types': 3.1.0
-      '@types/node': 25.9.5
+      '@slack/types': 3.2.0
+      '@types/node': 25.9.8
       '@types/retry': 0.12.5
       eventemitter3: 5.0.4
       p-queue: 6.6.2
@@ -803,15 +800,15 @@ snapshots:
   '@types/body-parser@1.19.6':
     dependencies:
       '@types/connect': 3.4.38
-      '@types/node': 25.9.7
+      '@types/node': 25.9.8
 
   '@types/connect@3.4.38':
     dependencies:
-      '@types/node': 25.9.7
+      '@types/node': 25.9.8
 
   '@types/express-serve-static-core@5.1.1':
     dependencies:
-      '@types/node': 25.9.7
+      '@types/node': 25.9.8
       '@types/qs': 6.15.1
       '@types/range-parser': 1.2.7
       '@types/send': 1.2.1
@@ -835,10 +832,6 @@ snapshots:
     dependencies:
       undici-types: 7.24.6
 
-  '@types/node@25.9.7':
-    dependencies:
-      undici-types: 7.24.6
-
   '@types/node@25.9.8':
     dependencies:
       undici-types: 7.24.6
@@ -853,12 +846,12 @@ snapshots:
 
   '@types/send@1.2.1':
     dependencies:
-      '@types/node': 25.9.7
+      '@types/node': 25.9.8
 
   '@types/serve-static@2.2.0':
     dependencies:
       '@types/http-errors': 2.0.5
-      '@types/node': 25.9.7
+      '@types/node': 25.9.8
 
   '@typescript/typescript-aix-ppc64@7.0.2':
     optional: true
